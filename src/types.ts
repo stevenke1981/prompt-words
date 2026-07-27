@@ -82,6 +82,10 @@ export interface TemplateState {
   /** fieldId -> option id 陣列（select 欄位） */
   selectValues: Record<string, string[]>;
   duration: number | null;
+  /** 是否啟用分秒動作時間軸 */
+  timelineEnabled: boolean;
+  /** 分秒節拍（啟用時接管動作類欄位） */
+  beats: Beat[];
 }
 
 /** 全域「導演控制台」設定（參考 Seedance 2.0 工作流） */

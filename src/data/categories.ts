@@ -337,6 +337,11 @@ export const RANDOM_SUBJECTS = SUBJECT_PRESETS;
 /** @deprecated 使用 ACTION_PRESETS */
 export const RANDOM_ACTIONS = ACTION_PRESETS;
 
+/** 模板中語意為「主體」的文字欄位 id（套用主體靈感庫） */
+export const SUBJECT_FIELD_IDS = new Set(['subject', 'character', 'product', 'host', 'performer', 'landscape', 'protagonist']);
+/** 模板中語意為「動作」的文字欄位 id（套用動作靈感庫；啟用時間軸時由時間軸接管） */
+export const ACTION_FIELD_IDS = new Set(['action', 'expression', 'dance', 'visibleBeat', 'performance']);
+
 export function findOption(catId: string, optId: string): TagOption | undefined {
   return CATEGORIES.find((c) => c.id === catId)?.options.find((o) => o.id === optId);
 }

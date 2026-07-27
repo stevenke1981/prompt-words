@@ -32,6 +32,8 @@ const emptyTemplate: TemplateState = {
   values: {},
   selectValues: {},
   duration: null,
+  timelineEnabled: false,
+  beats: [],
 };
 
 function contentKey(zh: string, en: string): string {
@@ -121,8 +123,8 @@ export default function App() {
   const handleLoad = (e: HistoryEntry) => {
     setPlatform(e.platform);
     setMode(e.mode);
-    setFormState(e.form);
-    setTemplateState(e.template);
+    setFormState({ ...e.form, timelineEnabled: e.form.timelineEnabled ?? false, beats: e.form.beats ?? [] });
+    setTemplateState({ ...e.template, timelineEnabled: e.template.timelineEnabled ?? false, beats: e.template.beats ?? [] });
     setSettings(e.settings ?? DEFAULT_SETTINGS);
     setShowHistory(false);
   };

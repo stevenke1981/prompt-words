@@ -967,6 +967,8 @@ input { font-family: inherit; }
 }
 .beat-del:hover { color: var(--rec); background: var(--rec-soft); }
 .duration-hint { margin: 10px 0 0; font-size: 11px; color: var(--ink-3); line-height: 1.5; }
+.field-taken { display: block; margin-top: 7px; font-size: 11px; font-weight: 600; color: var(--accent); }
+.dual-field input:disabled { opacity: 0.55; background: var(--surface-2); cursor: not-allowed; }
 
 @media (max-width: 720px) {
   .beat-row { grid-template-columns: 1fr; }

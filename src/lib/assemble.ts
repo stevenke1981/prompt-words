@@ -1,5 +1,5 @@
-import type { BuilderMode, FormState, Platform, Settings, TemplateState } from '../types';
-import { ASSEMBLY_ORDER, CATEGORIES, findOption } from '../data/categories';
+import type { Beat, BuilderMode, FormState, Platform, Settings, TemplateState } from '../types';
+import { ACTION_FIELD_IDS, ASSEMBLY_ORDER, CATEGORIES, findOption } from '../data/categories';
 import { getTemplate } from '../data/templates';
 import { PLATFORMS } from '../data/platforms';
 import { ANTI_SLOP, DENSITY, getAspectRatio, getAudioIntent, getMode } from '../data/settings';
@@ -13,6 +13,13 @@ function pick(zh: string, en: string, lang: Lang): string {
   const e = en.trim();
   if (lang === 'zh') return z || e;
   return e || z;
+}
+
+function beatSequence(beats: Beat[], lang: Lang): string {
+  return beats
+    .filter((b) => b.zh.trim() || b.en.trim())
+    .map((b) => `[${b.start}–${b.end}s] ${pick(b.zh, b.en, lang)}`)
+    .join(lang === 'en' ? '; ' : '；');
 }
 
 function wrap(value: string, pattern: string | undefined): string {
@@ -76,10 +83,7 @@ export function assembleForm(state: FormState, lang: Lang, platform: Platform, s
   const subject = pick(state.subjectZh, state.subjectEn, lang);
   if (subject) parts.push(subject);
   if (state.timelineEnabled && state.beats.length > 0) {
-    const seq = state.beats
-      .filter((b) => b.zh.trim() || b.en.trim())
-      .map((b) => `[${b.start}–${b.end}s] ${pick(b.zh, b.en, lang)}`)
-      .join(lang === 'en' ? '; ' : '；');
+    const seq = beatSequence(state.beats, lang);
     if (seq) parts.push(seq);
   } else {
     const action = pick(state.actionZh, state.actionEn, lang);
@@ -126,7 +130,16 @@ export function assembleTemplate(state: TemplateState, lang: Lang, platform: Pla
 
   const parts: string[] = [];
 
+  let beatsInserted = false;
   for (const field of template.fields) {
+    if (state.timelineEnabled && ACTION_FIELD_IDS.has(field.id)) {
+      if (!beatsInserted) {
+        const seq = beatSequence(state.beats ?? [], lang);
+        if (seq) parts.push(seq);
+        beatsInserted = true;
+      }
+      continue;
+    }
     if (field.type === 'text') {
       const v = state.values[field.id];
       const value = v ? pick(v.zh, v.en, lang) : '';
@@ -141,14 +154,19 @@ export function assembleTemplate(state: TemplateState, lang: Lang, platform: Pla
       parts.push(wrap(joined, lang === 'zh' ? field.wrapZh : field.wrapEn));
     }
   }
-
-  const suffix = lang === 'zh' ? template.suffixZh : template.suffixEn;
-  if (suffix) parts.push(suffix);
+  if (state.timelineEnabled && !beatsInserted) {
+    const seq = beatSequence(state.beats ?? [], lang);
+    if (seq) parts.push(seq);
+  }
 
   const dur = durationPart(state.duration, lang, platform);
   if (dur) parts.push(dur);
 
-  return withTail(joinParts(parts, lang), settingsTail(settings, lang), lang);
+  const suffix = lang === 'zh' ? template.suffixZh : template.suffixEn;
+  const tail = settingsTail(settings, lang);
+  if (suffix) tail.unshift(suffix);
+
+  return withTail(joinParts(parts, lang), tail, lang);
 }
 
 /** 統計提示詞長度（中文算字元、英文算單字） */
@@ -198,7 +216,21 @@ export function buildSummary(
     const t = getTemplate(template.templateId);
     if (t) {
       rows.push({ k: '模板 · TEMPLATE', v: `${t.icon} ${t.zh}` });
+      let beatsInserted = false;
+      const pushBeatsRow = () => {
+        const beats = (template.beats ?? [])
+          .filter((b) => b.zh.trim() || b.en.trim())
+          .map((b) => `${b.start}–${b.end}s ${b.zh.trim() || b.en.trim()}`);
+        if (beats.length) rows.push({ k: '🎞 時間軸', v: beats.join('　') });
+      };
       for (const field of t.fields) {
+        if (template.timelineEnabled && ACTION_FIELD_IDS.has(field.id)) {
+          if (!beatsInserted) {
+            pushBeatsRow();
+            beatsInserted = true;
+          }
+          continue;
+        }
         if (field.type === 'text') {
           const val = template.values[field.id];
           const v = val ? val.zh.trim() || val.en.trim() : '';
@@ -211,6 +243,7 @@ export function buildSummary(
           if (labels.length) rows.push({ k: field.zhLabel, v: labels.join('、') });
         }
       }
+      if (template.timelineEnabled && !beatsInserted) pushBeatsRow();
     }
   }
   const dur = mode === 'form' ? form.duration : template.duration;

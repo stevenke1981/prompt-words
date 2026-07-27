@@ -1,9 +1,13 @@
 import { useState } from 'react';
-import type { Platform, TemplateState } from '../types';
+import type { Platform, TagOption, TemplateState } from '../types';
+import { ACTION_FIELD_IDS, ACTION_PRESETS, SUBJECT_FIELD_IDS, SUBJECT_PRESETS } from '../data/categories';
 import { TEMPLATES, getTemplate } from '../data/templates';
 import { PLATFORMS } from '../data/platforms';
 import { copyText } from '../lib/clipboard';
 import TagSelector from './TagSelector';
+import DualInput from './DualInput';
+import PresetRow from './PresetRow';
+import TimelineEditor from './TimelineEditor';
 
 interface Props {
   state: TemplateState;
@@ -24,9 +28,9 @@ export default function TemplateBuilder({ state, platform, onChange }: Props) {
 
   const setText = (fieldId: string, zh: string, en: string) =>
     onChange({ ...state, values: { ...state.values, [fieldId]: { zh, en } } });
-
   const setSelect = (fieldId: string, ids: string[]) =>
     onChange({ ...state, selectValues: { ...state.selectValues, [fieldId]: ids } });
+  const pickField = (fieldId: string, p: TagOption) => setText(fieldId, p.zh, p.en);
 
   return (
     <div className="builder">
@@ -89,48 +93,58 @@ export default function TemplateBuilder({ state, platform, onChange }: Props) {
 
       {template && (
         <>
-          {template.fields.map((field, i) => (
-            <section className="field-block" key={field.id}>
-              <div className="field-head">
-                <span className="field-num">{String(i + 2).padStart(2, '0')}</span>
-                <span className="field-name">{field.zhLabel}</span>
-                <span className="field-en">{field.enLabel}</span>
-              </div>
-              {field.type === 'text' ? (
-                <div className="dual-input">
-                  <div className="dual-field">
-                    <span className="dual-label">中</span>
-                    <input
-                      type="text"
-                      value={state.values[field.id]?.zh ?? ''}
-                      placeholder={field.placeholderZh}
-                      onChange={(e) =>
-                        setText(field.id, e.target.value, state.values[field.id]?.en ?? '')
-                      }
-                    />
-                  </div>
-                  <div className="dual-field">
-                    <span className="dual-label">EN</span>
-                    <input
-                      type="text"
-                      value={state.values[field.id]?.en ?? ''}
-                      placeholder={field.placeholderEn}
-                      onChange={(e) =>
-                        setText(field.id, state.values[field.id]?.zh ?? '', e.target.value)
-                      }
-                    />
-                  </div>
+          {template.fields.map((field, i) => {
+            const isActionLike = ACTION_FIELD_IDS.has(field.id);
+            const taken = state.timelineEnabled && isActionLike;
+            const val = state.values[field.id];
+            return (
+              <section className="field-block" key={field.id}>
+                <div className="field-head">
+                  <span className="field-num">{String(i + 2).padStart(2, '0')}</span>
+                  <span className="field-name">{field.zhLabel}</span>
+                  <span className="field-en">{field.enLabel}</span>
                 </div>
-              ) : (
-                <TagSelector
-                  options={field.options ?? []}
-                  selected={state.selectValues[field.id] ?? []}
-                  multi={field.multi ?? true}
-                  onChange={(ids) => setSelect(field.id, ids)}
-                />
-              )}
-            </section>
-          ))}
+                {field.type === 'text' ? (
+                  <>
+                    <DualInput
+                      zh={val?.zh ?? ''}
+                      en={val?.en ?? ''}
+                      placeholderZh={field.placeholderZh ?? ''}
+                      placeholderEn={field.placeholderEn ?? ''}
+                      disabled={taken}
+                      onChange={(zh, en) => setText(field.id, zh, en)}
+                    />
+                    {taken && <span className="field-taken">⏱ 此欄位由分秒時間軸接管</span>}
+                    {SUBJECT_FIELD_IDS.has(field.id) && (
+                      <PresetRow
+                        title="主體靈感庫 · SUBJECT LIBRARY"
+                        presets={SUBJECT_PRESETS}
+                        activeZh={val?.zh ?? ''}
+                        activeEn={val?.en ?? ''}
+                        onPick={(p) => pickField(field.id, p)}
+                      />
+                    )}
+                    {!state.timelineEnabled && isActionLike && (
+                      <PresetRow
+                        title="動作靈感庫 · ACTION LIBRARY"
+                        presets={ACTION_PRESETS}
+                        activeZh={val?.zh ?? ''}
+                        activeEn={val?.en ?? ''}
+                        onPick={(p) => pickField(field.id, p)}
+                      />
+                    )}
+                  </>
+                ) : (
+                  <TagSelector
+                    options={field.options ?? []}
+                    selected={state.selectValues[field.id] ?? []}
+                    multi={field.multi ?? true}
+                    onChange={(ids) => setSelect(field.id, ids)}
+                  />
+                )}
+              </section>
+            );
+          })}
 
           <section className="field-block">
             <div className="field-head">
@@ -150,6 +164,15 @@ export default function TemplateBuilder({ state, platform, onChange }: Props) {
                   <span className="duration-unit">秒</span>
                 </button>
               ))}
+            </div>
+            <p className="duration-hint">提示：≥ 15 秒建議啟用下方「分秒時間軸」，以多鏡頭時間碼描述長片。</p>
+            <div style={{ marginTop: 12 }}>
+              <TimelineEditor
+                timelineEnabled={state.timelineEnabled}
+                beats={state.beats}
+                duration={state.duration}
+                onChange={(p) => onChange({ ...state, ...p })}
+              />
             </div>
           </section>
         </>
