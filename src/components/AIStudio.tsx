@@ -36,6 +36,7 @@ export default function AIStudio({ basePromptZh, basePromptEn, platform, languag
   const [provider, setProvider] = useState('openrouter');
   const [model, setModel] = useState('');
   const [apiKey, setApiKey] = useState('');
+  const [baseUrl, setBaseUrl] = useState('');
   const [brief, setBrief] = useState('');
   const [style, setStyle] = useState('電影感、自然光影、角色一致、動作連續、細節清晰');
   const [camera, setCamera] = useState('依敘事使用建立鏡頭、跟拍、特寫與平滑轉場');
@@ -99,6 +100,7 @@ export default function AIStudio({ basePromptZh, basePromptEn, platform, languag
         provider,
         model,
         apiKey,
+        baseUrl,
         brief,
         basePrompt,
         platform,
@@ -223,6 +225,22 @@ export default function AIStudio({ basePromptZh, basePromptEn, platform, languag
             />
             <small>不寫入 localStorage 或資料庫；正式部署建議改用伺服器環境變數。</small>
           </label>
+
+          {(provider === 'sakana' || provider === 'custom') && (
+            <label className="ai-field">
+              <span>Base URL</span>
+              <input
+                value={baseUrl}
+                onChange={(event) => setBaseUrl(event.target.value)}
+                placeholder={
+                  provider === 'sakana'
+                    ? '例如 https://api.sakana.ai/v1'
+                    : '例如 https://api.openai.com/v1'
+                }
+              />
+              <small>輸入 API 端點網址，結尾不需要 /chat/completions。</small>
+            </label>
+          )}
 
           <label className="ai-field">
             <span>影片構想／故事意圖</span>

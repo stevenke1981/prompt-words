@@ -28,7 +28,7 @@ const PROVIDERS = {
     baseUrl: process.env.SAKANA_BASE_URL ?? '',
     defaultModel: process.env.SAKANA_MODEL ?? 'fugu-ultra',
     envKey: 'SAKANA_API_KEY',
-    enabled: Boolean(process.env.SAKANA_BASE_URL),
+    enabled: true,
   },
   custom: {
     id: 'custom',
@@ -36,7 +36,7 @@ const PROVIDERS = {
     baseUrl: process.env.CUSTOM_LLM_BASE_URL ?? '',
     defaultModel: process.env.CUSTOM_LLM_MODEL ?? '',
     envKey: 'CUSTOM_LLM_API_KEY',
-    enabled: Boolean(process.env.CUSTOM_LLM_BASE_URL),
+    enabled: true,
   },
 };
 
@@ -104,9 +104,11 @@ function providerPublicConfig(provider) {
     defaultModel: provider.defaultModel,
     enabled: provider.enabled,
     keyConfigured: Boolean(process.env[provider.envKey]),
-    note: provider.id === 'sakana' && !provider.enabled
-      ? '請先在伺服器設定 SAKANA_BASE_URL；API Key 可由介面暫時輸入或使用環境變數。'
-      : undefined,
+    note: provider.id === 'sakana' && !process.env.SAKANA_BASE_URL
+      ? '請在下方輸入 Sakana AI 的 Base URL，或設定 SAKANA_BASE_URL 環境變數。'
+      : provider.id === 'custom' && !process.env.CUSTOM_LLM_BASE_URL
+        ? '請在下方輸入 API 端點 Base URL，或設定 CUSTOM_LLM_BASE_URL 環境變數。'
+        : undefined,
   };
 }
 
@@ -183,11 +185,13 @@ function makeUserPrompt(input) {
 請將概念具體化，但不要擅自改變核心意圖。`;
 }
 
-async function callProvider({ providerId, apiKey, model, input }) {
+async function callProvider({ providerId, apiKey, model, baseUrl, input }) {
   const provider = PROVIDERS[providerId];
   if (!provider) throw new Error('不支援的 AI 供應商');
-  if (!provider.enabled || !provider.baseUrl) {
-    throw new Error(`${provider.name} 尚未設定伺服器 Base URL`);
+
+  const resolvedBaseUrl = (baseUrl || provider.baseUrl || '').replace(/\/$/, '');
+  if (!resolvedBaseUrl) {
+    throw new Error(`請設定 ${provider.name} 的 Base URL（環境變數或下方輸入框）`);
   }
 
   const token = safeString(apiKey, 10_000) || process.env[provider.envKey] || '';
@@ -226,7 +230,7 @@ async function callProvider({ providerId, apiKey, model, input }) {
   const timeout = setTimeout(() => controller.abort(), 120_000);
   let response;
   try {
-    response = await fetch(`${provider.baseUrl.replace(/\/$/, '')}/chat/completions`, {
+    response = await fetch(`${resolvedBaseUrl}/chat/completions`, {
       method: 'POST',
       headers,
       body: JSON.stringify(payload),
@@ -391,6 +395,7 @@ export function createApiHandler() {
           providerId: safeString(body.provider, 40),
           apiKey: safeString(body.apiKey, 10_000),
           model: safeString(body.model, 240),
+          baseUrl: safeString(body.baseUrl, 500),
           input: {
             brief,
             basePrompt,
