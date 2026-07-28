@@ -13,6 +13,7 @@ import FormBuilder from './components/FormBuilder';
 import TemplateBuilder from './components/TemplateBuilder';
 import PreviewPanel from './components/PreviewPanel';
 import HistoryPanel from './components/HistoryPanel';
+import AIStudio from './components/AIStudio';
 
 const MAX_HISTORY = 50;
 
@@ -107,9 +108,7 @@ export default function App() {
   const handleToggleFavorite = () => {
     if (!zh && !en) return;
     if (existing) {
-      setHistory((prev) =>
-        prev.map((h) => (contentKey(h.zh, h.en) === key ? { ...h, favorite: !h.favorite } : h)),
-      );
+      setHistory((prev) => prev.map((h) => (contentKey(h.zh, h.en) === key ? { ...h, favorite: !h.favorite } : h)));
     } else {
       pushHistory(true);
     }
@@ -120,12 +119,12 @@ export default function App() {
     setFormState(randomFormState(platform));
   };
 
-  const handleLoad = (e: HistoryEntry) => {
-    setPlatform(e.platform);
-    setMode(e.mode);
-    setFormState({ ...e.form, timelineEnabled: e.form.timelineEnabled ?? false, beats: e.form.beats ?? [] });
-    setTemplateState({ ...e.template, timelineEnabled: e.template.timelineEnabled ?? false, beats: e.template.beats ?? [] });
-    setSettings(e.settings ?? DEFAULT_SETTINGS);
+  const handleLoad = (entry: HistoryEntry) => {
+    setPlatform(entry.platform);
+    setMode(entry.mode);
+    setFormState({ ...entry.form, timelineEnabled: entry.form.timelineEnabled ?? false, beats: entry.form.beats ?? [] });
+    setTemplateState({ ...entry.template, timelineEnabled: entry.template.timelineEnabled ?? false, beats: entry.template.beats ?? [] });
+    setSettings(entry.settings ?? DEFAULT_SETTINGS);
     setShowHistory(false);
   };
 
@@ -147,13 +146,21 @@ export default function App() {
             ▤ 模板填空
           </button>
         </div>
-        <button type="button" className={`history-toggle${showHistory ? ' open' : ''}`} onClick={() => setShowHistory((s) => !s)}>
-          🕘 歷史紀錄
+        <button type="button" className={`history-toggle${showHistory ? ' open' : ''}`} onClick={() => setShowHistory((value) => !value)}>
+          🕘 本機歷史
           {history.length > 0 && <span className="history-badge">{history.length}</span>}
         </button>
       </div>
 
       <SettingsConsole settings={settings} onChange={setSettings} />
+
+      <AIStudio
+        basePromptZh={zh}
+        basePromptEn={en}
+        platform={platform}
+        language={language}
+        duration={currentDuration}
+      />
 
       {showHistory && (
         <HistoryPanel
@@ -192,7 +199,7 @@ export default function App() {
       <footer className="footer">
         <span>PROMPT·WORDS</span>
         <span className="footer-sep">·</span>
-        <span>Seedance 2.0 / Grok Imagine 影片提示詞產生器</span>
+        <span>AI 影片提示詞導演台 · OpenRouter / DeepSeek V4 Pro / Sakana Fugu</span>
       </footer>
     </div>
   );
