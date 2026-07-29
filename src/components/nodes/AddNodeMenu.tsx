@@ -36,7 +36,7 @@ export default function AddNodeMenu({ x, y, onAdd, onClose }: Props) {
   return (
     <>
       <div className="ns-menu-overlay" onPointerDown={onClose} />
-      <div className="ns-menu" style={{ left: x, top: y }}>
+      <div className="ns-menu" style={{ left: x, top: y }} onPointerDown={(e) => e.stopPropagation()}>
         <div className="ns-menu-col">
           <span className="ns-menu-head">內容元件</span>
           {CONTENT_KINDS.map((k) => item(k))}

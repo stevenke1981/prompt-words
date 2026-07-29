@@ -277,6 +277,16 @@
 
 /* ---------- 成品輸出節點 ---------- */
 
+.output-wiring-target {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft), 0 0 24px var(--accent-soft);
+  animation: output-pulse 1s ease-in-out infinite alternate;
+}
+@keyframes output-pulse {
+  from { box-shadow: 0 0 0 3px var(--accent-soft), 0 0 16px var(--accent-soft); }
+  to { box-shadow: 0 0 0 5px var(--accent-soft), 0 0 28px var(--accent-soft); }
+}
+
 .output-slots { padding: 6px 10px 4px; min-height: 34px; }
 
 .slots-empty {

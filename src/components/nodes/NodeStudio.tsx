@@ -114,15 +114,13 @@ export default function NodeStudio({
     onChange({ ...graph, edges });
   };
 
-  const addNode = (kind: NodeKind, categoryId?: string, at?: { x: number; y: number }) => {
+  const addNode = (kind: NodeKind, categoryId?: string) => {
     const rect = containerRef.current?.getBoundingClientRect();
-    const pos =
-      at ??
-      (rect
-        ? screenToCanvas(rect.left + rect.width / 2, rect.top + rect.height / 2)
-        : { x: 300, y: 200 });
-    const jitter = () => Math.round(Math.random() * 24 - 12);
-    const node = makeNode(kind, pos.x - NODE_WIDTH[kind] / 2 + jitter(), pos.y - 24 + jitter(), categoryId);
+    const center = rect
+      ? screenToCanvas(rect.left + rect.width / 2, rect.top + rect.height / 2)
+      : { x: 300, y: 200 };
+    const jitter = () => Math.round(Math.random() * 40 - 20);
+    const node = makeNode(kind, center.x - NODE_WIDTH[kind] / 2 + jitter(), center.y - 24 + jitter(), categoryId);
     onChange({ ...graph, nodes: [...graph.nodes, node] });
     setSelected({ type: 'node', id: node.id });
     setMenu(null);
@@ -163,6 +161,7 @@ export default function NodeStudio({
 
   const onPortPointerDown = (e: ReactPointerEvent, fromId: string) => {
     e.stopPropagation();
+    if (output && fromId === output.id) return;
     const p = screenToCanvas(e.clientX, e.clientY);
     setPending({ from: fromId, x: p.x, y: p.y });
     capture(e.pointerId);
@@ -308,13 +307,6 @@ export default function NodeStudio({
 
   const pendingSource = pending ? graph.nodes.find((n) => n.id === pending.from) : null;
 
-  /** 選單位置（容器內螢幕座標）→ 畫布座標，讓新增的節點落在選單附近 */
-  const menuToCanvas = (m: { x: number; y: number }) => {
-    const rect = containerRef.current?.getBoundingClientRect();
-    if (!rect) return undefined;
-    return screenToCanvas(rect.left + m.x + 24, rect.top + m.y + 24);
-  };
-
   return (
     <section className="node-studio">
       <div className="ns-toolbar">
@@ -453,7 +445,7 @@ export default function NodeStudio({
         {pending && <div className="ns-wiring-hint">放開滑鼠以接到「成品輸出」· Esc 取消</div>}
 
         {menu && (
-          <AddNodeMenu x={menu.x} y={menu.y} onAdd={(kind, categoryId) => addNode(kind, categoryId, menuToCanvas(menu))} onClose={() => setMenu(null)} />
+          <AddNodeMenu x={menu.x} y={menu.y} onAdd={(kind, categoryId) => addNode(kind, categoryId)} onClose={() => setMenu(null)} />
         )}
       </div>
     </section>

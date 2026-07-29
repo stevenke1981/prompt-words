@@ -73,7 +73,7 @@ export default function OutputNode({
 
   return (
     <div
-      className={`node node-tint-output output-node${selected ? ' node-selected' : ''}`}
+      className={`node node-tint-output output-node${selected ? ' node-selected' : ''}${wiring ? ' output-wiring-target' : ''}`}
       data-node-id={node.id}
       style={{ transform: `translate(${node.x}px, ${node.y}px)`, width: NODE_WIDTH.output }}
       onPointerDown={onSelect}
