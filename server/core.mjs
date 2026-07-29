@@ -42,6 +42,14 @@ const PROVIDERS = {
 
 let db;
 
+class ApiError extends Error {
+  constructor(status, message, options) {
+    super(message, options);
+    this.name = 'ApiError';
+    this.status = status;
+  }
+}
+
 function getDb() {
   if (db) return db;
   mkdirSync(dirname(DEFAULT_DB_PATH), { recursive: true });
@@ -70,6 +78,12 @@ function getDb() {
   return db;
 }
 
+export function closeDatabase() {
+  if (!db) return;
+  db.close();
+  db = undefined;
+}
+
 function json(res, status, payload) {
   res.statusCode = status;
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
@@ -82,14 +96,19 @@ async function readJson(req) {
   let size = 0;
   for await (const chunk of req) {
     size += chunk.length;
-    if (size > MAX_BODY_BYTES) throw new Error('請求內容過大');
+    if (size > MAX_BODY_BYTES) throw new ApiError(413, '請求內容過大');
     chunks.push(chunk);
   }
   if (chunks.length === 0) return {};
   try {
-    return JSON.parse(Buffer.concat(chunks).toString('utf8'));
-  } catch {
-    throw new Error('JSON 格式不正確');
+    const body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+    if (!body || Array.isArray(body) || typeof body !== 'object') {
+      throw new ApiError(400, 'JSON 內容必須是物件');
+    }
+    return body;
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
+    throw new ApiError(400, 'JSON 格式不正確', { cause: error });
   }
 }
 
@@ -114,20 +133,9 @@ function providerPublicConfig(provider) {
 
 function normalizeOutput(raw) {
   const cleaned = raw.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
+  let parsed;
   try {
-    const parsed = JSON.parse(cleaned);
-    return {
-      title: safeString(parsed.title, 160) || 'AI 影片提示詞',
-      promptZh: safeString(parsed.promptZh ?? parsed.prompt_zh),
-      promptEn: safeString(parsed.promptEn ?? parsed.prompt_en),
-      negativePrompt: safeString(parsed.negativePrompt ?? parsed.negative_prompt, 5000),
-      shotPlan: Array.isArray(parsed.shotPlan ?? parsed.shot_plan)
-        ? (parsed.shotPlan ?? parsed.shot_plan).slice(0, 16).map((item) => safeString(item, 500)).filter(Boolean)
-        : [],
-      notes: Array.isArray(parsed.notes)
-        ? parsed.notes.slice(0, 12).map((item) => safeString(item, 500)).filter(Boolean)
-        : [],
-    };
+    parsed = JSON.parse(cleaned);
   } catch {
     return {
       title: 'AI 影片提示詞',
@@ -138,6 +146,23 @@ function normalizeOutput(raw) {
       notes: ['模型未回傳 JSON，已保留原始內容。'],
     };
   }
+
+  const result = {
+    title: safeString(parsed.title, 160) || 'AI 影片提示詞',
+    promptZh: safeString(parsed.promptZh ?? parsed.prompt_zh),
+    promptEn: safeString(parsed.promptEn ?? parsed.prompt_en),
+    negativePrompt: safeString(parsed.negativePrompt ?? parsed.negative_prompt, 5000),
+    shotPlan: Array.isArray(parsed.shotPlan ?? parsed.shot_plan)
+      ? (parsed.shotPlan ?? parsed.shot_plan).slice(0, 16).map((item) => safeString(item, 500)).filter(Boolean)
+      : [],
+    notes: Array.isArray(parsed.notes)
+      ? parsed.notes.slice(0, 12).map((item) => safeString(item, 500)).filter(Boolean)
+      : [],
+  };
+  if (!result.promptZh && !result.promptEn) {
+    throw new ApiError(502, '模型回傳的 JSON 缺少提示詞內容');
+  }
+  return result;
 }
 
 function makeSystemPrompt() {
@@ -187,18 +212,18 @@ function makeUserPrompt(input) {
 
 async function callProvider({ providerId, apiKey, model, baseUrl, input }) {
   const provider = PROVIDERS[providerId];
-  if (!provider) throw new Error('不支援的 AI 供應商');
+  if (!provider) throw new ApiError(400, '不支援的 AI 供應商');
 
   const resolvedBaseUrl = (baseUrl || provider.baseUrl || '').replace(/\/$/, '');
   if (!resolvedBaseUrl) {
-    throw new Error(`請設定 ${provider.name} 的 Base URL（環境變數或下方輸入框）`);
+    throw new ApiError(400, `請設定 ${provider.name} 的 Base URL（環境變數或下方輸入框）`);
   }
 
   const token = safeString(apiKey, 10_000) || process.env[provider.envKey] || '';
-  if (!token) throw new Error(`缺少 ${provider.name} API Key`);
+  if (!token) throw new ApiError(400, `缺少 ${provider.name} API Key`);
 
   const selectedModel = safeString(model, 240) || provider.defaultModel;
-  if (!selectedModel) throw new Error('請指定模型 ID');
+  if (!selectedModel) throw new ApiError(400, '請指定模型 ID');
 
   const headers = {
     Authorization: `Bearer ${token}`,
@@ -236,6 +261,11 @@ async function callProvider({ providerId, apiKey, model, baseUrl, input }) {
       body: JSON.stringify(payload),
       signal: controller.signal,
     });
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new ApiError(504, `${provider.name} 呼叫逾時`, { cause: error });
+    }
+    throw new ApiError(502, `${provider.name} 連線失敗`, { cause: error });
   } finally {
     clearTimeout(timeout);
   }
@@ -250,11 +280,14 @@ async function callProvider({ providerId, apiKey, model, baseUrl, input }) {
 
   if (!response.ok) {
     const message = data?.error?.message || data?.message || text.slice(0, 600) || `HTTP ${response.status}`;
-    throw new Error(`${provider.name} 呼叫失敗：${message}`);
+    const status = response.status === 429 ? 429 : response.status === 401 || response.status === 403 ? 401 : 502;
+    throw new ApiError(status, `${provider.name} 呼叫失敗：${message}`);
   }
 
   const content = data?.choices?.[0]?.message?.content;
-  if (typeof content !== 'string' || !content.trim()) throw new Error('模型沒有回傳可用內容');
+  if (typeof content !== 'string' || !content.trim()) {
+    throw new ApiError(502, '模型沒有回傳可用內容');
+  }
 
   return {
     provider: providerId,
@@ -297,9 +330,11 @@ function savePrompt(body) {
   const now = new Date().toISOString();
   const id = safeString(body.id, 100) || randomUUID();
   const title = safeString(body.title, 160) || '未命名影片提示詞';
+  const database = getDb();
+  const existing = database.prepare('SELECT created_at, favorite FROM prompts WHERE id = ?').get(id);
   const record = {
     id,
-    createdAt: now,
+    createdAt: existing?.created_at ?? now,
     updatedAt: now,
     title,
     provider: safeString(body.provider, 80) || 'manual',
@@ -311,11 +346,13 @@ function savePrompt(body) {
     promptEn: safeString(body.promptEn),
     negativePrompt: safeString(body.negativePrompt, 5000),
     metadata: body.metadata && typeof body.metadata === 'object' ? body.metadata : {},
-    favorite: Boolean(body.favorite),
+    favorite: typeof body.favorite === 'boolean' ? body.favorite : Boolean(existing?.favorite),
   };
-  if (!record.promptZh && !record.promptEn) throw new Error('至少需要一個提示詞內容');
+  if (!record.promptZh && !record.promptEn) {
+    throw new ApiError(400, '至少需要一個提示詞內容');
+  }
 
-  getDb().prepare(`
+  database.prepare(`
     INSERT INTO prompts (
       id, created_at, updated_at, title, provider, model, platform, language,
       brief, prompt_zh, prompt_en, negative_prompt, metadata_json, favorite
@@ -345,7 +382,7 @@ function savePrompt(body) {
 function toggleFavorite(id, body) {
   const row = getDb().prepare('SELECT * FROM prompts WHERE id = ?').get(id);
   if (!row) return null;
-  const favorite = typeof body.favorite === 'boolean' ? body.favorite : !Boolean(row.favorite);
+  const favorite = typeof body.favorite === 'boolean' ? body.favorite : !row.favorite;
   const updatedAt = new Date().toISOString();
   getDb().prepare('UPDATE prompts SET favorite = ?, updated_at = ? WHERE id = ?').run(favorite ? 1 : 0, updatedAt, id);
   return mapPrompt(getDb().prepare('SELECT * FROM prompts WHERE id = ?').get(id));
@@ -390,7 +427,9 @@ export function createApiHandler() {
         const body = await readJson(req);
         const brief = safeString(body.brief);
         const basePrompt = safeString(body.basePrompt);
-        if (!brief && !basePrompt) throw new Error('請先輸入影片構想或建立基礎提示詞');
+        if (!brief && !basePrompt) {
+          throw new ApiError(400, '請先輸入影片構想或建立基礎提示詞');
+        }
         const result = await callProvider({
           providerId: safeString(body.provider, 40),
           apiKey: safeString(body.apiKey, 10_000),
@@ -434,8 +473,11 @@ export function createApiHandler() {
 
       return json(res, 404, { error: 'API endpoint not found' });
     } catch (error) {
-      const message = error instanceof Error ? error.message : '未知錯誤';
-      const status = message.includes('缺少') || message.includes('請') || message.includes('不支援') ? 400 : 500;
+      const status = error instanceof ApiError ? error.status : 500;
+      const message = status < 500 || error instanceof ApiError
+        ? error.message
+        : '伺服器處理請求時發生錯誤';
+      if (status >= 500 && !(error instanceof ApiError)) console.error(error);
       return json(res, status, { error: message });
     }
   };

@@ -1,0 +1,12 @@
+date: 2026-07-30
+autonomy: recommend_only
+candidate:
+  name: public deployment security boundary
+  evidence:
+    - custom and Sakana Base URLs can be supplied from the browser
+    - README already requires authentication and an endpoint allowlist for public deployment
+  outcome:
+    - add authentication, rate limiting, and an explicit outbound LLM host allowlist
+decision:
+  reason: implementation changes deployment and security policy, so it needs the owner's target environment and allowlist decision
+  auto_extension_used: false

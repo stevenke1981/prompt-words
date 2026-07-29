@@ -1,0 +1,26 @@
+change_id: CHANGE-001
+date: 2026-07-30
+scope:
+  - Windows production static server
+  - API request and SQLite lifecycle hardening
+  - AI provider credential isolation
+  - selection accessibility
+results:
+  build_or_launch: PASS
+  requested_user_scenario: PASS
+  affected_regression: PASS
+  critical_flows: PASS
+  visible_result: PASS
+  critical_errors: NONE
+evidence:
+  - npm run verify
+  - node:test integration suite: 5 passed, 0 failed
+  - npm audit --omit=dev: 0 vulnerabilities
+  - production browser loaded HTML, CSS, and JavaScript without console or page errors
+  - browser composed a bilingual prompt from subject, action, scene, mood, and duration
+  - browser switched between form and node workspaces
+  - browser confirmed custom provider starts with blank model, API key, and Base URL
+not_run:
+  - scenario: live third-party AI generation
+    status: MANUAL_REQUIRED
+    reason: no provider API credential was supplied for acceptance

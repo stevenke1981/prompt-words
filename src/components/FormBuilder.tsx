@@ -106,6 +106,7 @@ export default function FormBuilder({ state, platform, onChange }: Props) {
               key={d}
               type="button"
               className={`duration-btn${state.duration === d ? ' duration-active' : ''}`}
+              aria-pressed={state.duration === d}
               onClick={() => onChange({ ...state, duration: state.duration === d ? null : d })}
             >
               <span className="duration-num">{d}</span>

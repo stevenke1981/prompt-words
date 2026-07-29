@@ -1,0 +1,37 @@
+id: BASELINE-20260730-001
+status: passed
+accepted_features:
+  - Windows production server serves the SPA and hashed assets
+  - static file traversal and malformed path requests are rejected
+  - malformed, scalar, and oversized API bodies return explicit client errors
+  - SQLite prompt create, update, favorite, list, and delete lifecycle
+  - prompt updates preserve creation time and existing favorite state
+  - provider-specific API keys and Base URLs remain isolated in page memory
+  - provider changes reset the model to that provider's configured default
+  - tag and duration selections expose aria-pressed state
+critical_user_flows:
+  - compose a bilingual prompt in form mode
+  - open and use the node workspace
+  - save and manage prompt records through the API
+  - switch AI providers without reusing another provider's credentials
+protected_behavior:
+  - API keys are not persisted to localStorage or SQLite
+  - existing prompt IDs remain upsertable
+  - unknown SPA routes continue to fall back to index.html
+public_interfaces:
+  - GET /api/health
+  - GET /api/providers
+  - POST /api/generate
+  - GET /api/prompts
+  - POST /api/prompts
+  - PATCH /api/prompts/:id/favorite
+  - DELETE /api/prompts/:id
+environment:
+  - Windows
+  - Node.js v24.15.0
+  - npm 11.12.1
+evidence:
+  - .agent/acceptance/CHANGE-001-acceptance.yaml
+known_limitations:
+  - live third-party AI generation requires the owner's provider credential
+  - public deployment still requires authentication, rate limiting, HTTPS, and an endpoint allowlist

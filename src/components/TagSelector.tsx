@@ -27,6 +27,7 @@ export default function TagSelector({ options, selected, multi = true, onChange 
             key={opt.id}
             type="button"
             className={`tag${active ? ' tag-active' : ''}`}
+            aria-pressed={active}
             onClick={() => toggle(opt.id)}
             title={opt.en}
           >

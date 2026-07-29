@@ -22,6 +22,11 @@ const EMPTY_RESULT: GeneratedPrompt = {
   notes: [],
 };
 
+interface ProviderCredentials {
+  apiKey: string;
+  baseUrl: string;
+}
+
 function formatDate(value: string): string {
   return new Intl.DateTimeFormat('zh-TW', {
     month: '2-digit',
@@ -35,8 +40,7 @@ export default function AIStudio({ basePromptZh, basePromptEn, platform, languag
   const [providers, setProviders] = useState<ProviderInfo[]>([]);
   const [provider, setProvider] = useState('openrouter');
   const [model, setModel] = useState('');
-  const [apiKey, setApiKey] = useState('');
-  const [baseUrl, setBaseUrl] = useState('');
+  const [credentials, setCredentials] = useState<Record<string, ProviderCredentials>>({});
   const [brief, setBrief] = useState('');
   const [style, setStyle] = useState('電影感、自然光影、角色一致、動作連續、細節清晰');
   const [camera, setCamera] = useState('依敘事使用建立鏡頭、跟拍、特寫與平滑轉場');
@@ -57,6 +61,16 @@ export default function AIStudio({ basePromptZh, basePromptEn, platform, languag
     () => providers.find((item) => item.id === provider),
     [provider, providers],
   );
+  const activeCredentials = credentials[provider] ?? { apiKey: '', baseUrl: '' };
+  const updateCredentials = (patch: Partial<ProviderCredentials>) => {
+    setCredentials((current) => {
+      const currentCredentials = current[provider] ?? { apiKey: '', baseUrl: '' };
+      return {
+        ...current,
+        [provider]: { ...currentCredentials, ...patch },
+      };
+    });
+  };
 
   const basePrompt = language === 'zh'
     ? basePromptZh
@@ -88,8 +102,8 @@ export default function AIStudio({ basePromptZh, basePromptEn, platform, languag
   }, []);
 
   useEffect(() => {
-    if (activeProvider?.defaultModel) setModel(activeProvider.defaultModel);
-  }, [activeProvider?.id, activeProvider?.defaultModel]);
+    if (activeProvider) setModel(activeProvider.defaultModel);
+  }, [activeProvider]);
 
   const generate = async () => {
     setBusy(true);
@@ -99,8 +113,8 @@ export default function AIStudio({ basePromptZh, basePromptEn, platform, languag
       const data = await promptApi.generate({
         provider,
         model,
-        apiKey,
-        baseUrl,
+        apiKey: activeCredentials.apiKey,
+        baseUrl: activeCredentials.baseUrl,
         brief,
         basePrompt,
         platform,
@@ -218,8 +232,8 @@ export default function AIStudio({ basePromptZh, basePromptEn, platform, languag
             <span>API Key</span>
             <input
               type="password"
-              value={apiKey}
-              onChange={(event) => setApiKey(event.target.value)}
+              value={activeCredentials.apiKey}
+              onChange={(event) => updateCredentials({ apiKey: event.target.value })}
               placeholder={activeProvider?.keyConfigured ? '伺服器已設定；可留空' : '只保留在目前頁面記憶體中'}
               autoComplete="off"
             />
@@ -230,8 +244,8 @@ export default function AIStudio({ basePromptZh, basePromptEn, platform, languag
             <label className="ai-field">
               <span>Base URL</span>
               <input
-                value={baseUrl}
-                onChange={(event) => setBaseUrl(event.target.value)}
+                value={activeCredentials.baseUrl}
+                onChange={(event) => updateCredentials({ baseUrl: event.target.value })}
                 placeholder={
                   provider === 'sakana'
                     ? '例如 https://api.sakana.ai/v1'
@@ -337,8 +351,8 @@ export default function AIStudio({ basePromptZh, basePromptEn, platform, languag
             </div>
           )}
 
-          {error && <p className="ai-message error">{error}</p>}
-          {notice && <p className="ai-message success">{notice}</p>}
+          {error && <p className="ai-message error" role="alert">{error}</p>}
+          {notice && <p className="ai-message success" role="status">{notice}</p>}
         </div>
       </div>
 
