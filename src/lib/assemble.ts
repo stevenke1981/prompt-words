@@ -1,4 +1,4 @@
-import type { Beat, BuilderMode, FormState, Platform, Settings, TemplateState } from '../types';
+import type { Beat, BuilderMode, FormState, Platform, PromptTemplate, Settings, TemplateState } from '../types';
 import { ACTION_FIELD_IDS, ASSEMBLY_ORDER, CATEGORIES, findOption } from '../data/categories';
 import { getTemplate } from '../data/templates';
 import { PLATFORMS } from '../data/platforms';
@@ -8,30 +8,30 @@ export type Lang = 'zh' | 'en';
 
 const SEP: Record<Lang, string> = { zh: '，', en: ', ' };
 
-function pick(zh: string, en: string, lang: Lang): string {
+export function pick(zh: string, en: string, lang: Lang): string {
   const z = zh.trim();
   const e = en.trim();
   if (lang === 'zh') return z || e;
   return e || z;
 }
 
-function beatSequence(beats: Beat[], lang: Lang): string {
+export function beatSequence(beats: Beat[], lang: Lang): string {
   return beats
     .filter((b) => b.zh.trim() || b.en.trim())
     .map((b) => `[${b.start}–${b.end}s] ${pick(b.zh, b.en, lang)}`)
     .join(lang === 'en' ? '; ' : '；');
 }
 
-function wrap(value: string, pattern: string | undefined): string {
+export function wrap(value: string, pattern: string | undefined): string {
   if (!pattern) return value;
   return pattern.replace('{v}', value);
 }
 
-function joinParts(parts: string[], lang: Lang): string {
+export function joinParts(parts: string[], lang: Lang): string {
   return parts.filter(Boolean).join(SEP[lang]);
 }
 
-function durationPart(duration: number | null, lang: Lang, platform: Platform): string {
+export function durationPart(duration: number | null, lang: Lang, platform: Platform): string {
   if (!duration) return '';
   const meta = PLATFORMS[platform];
   return lang === 'zh' ? meta.durationZh(duration) : meta.durationEn(duration);
@@ -44,7 +44,7 @@ function normalizeSentence(t: string, lang: Lang): string {
 }
 
 /** 依全域設定產生附加的導演指令句（模式合約／聲音／密度／反陳腔／比例構圖） */
-function settingsTail(settings: Settings, lang: Lang): string[] {
+export function settingsTail(settings: Settings, lang: Lang): string[] {
   const tail: string[] = [];
   const mode = getMode(settings.mode);
   if (mode && mode.id !== 'T2V') tail.push(lang === 'zh' ? mode.framingZh : mode.framingEn);
@@ -67,7 +67,7 @@ function settingsTail(settings: Settings, lang: Lang): string[] {
   return tail;
 }
 
-function withTail(body: string, tail: string[], lang: Lang): string {
+export function withTail(body: string, tail: string[], lang: Lang): string {
   if (tail.length === 0) return body;
   const tailStr = tail.map((t) => normalizeSentence(t, lang)).join(lang === 'en' ? ' ' : '');
   if (!body) return tailStr;
@@ -123,30 +123,36 @@ export function assembleForm(state: FormState, lang: Lang, platform: Platform, s
   return withTail(joinParts(parts, lang), settingsTail(settings, lang), lang);
 }
 
-/** 模板填空模式的提示詞組裝 */
-export function assembleTemplate(state: TemplateState, lang: Lang, platform: Platform, settings: Settings): string {
-  const template = getTemplate(state.templateId);
-  if (!template) return '';
-
+/**
+ * 模板欄位組裝（不含秒數／後綴／導演指令）。
+ * beats 為 null 表示未啟用時間軸；傳入陣列（可為空）表示啟用，動作類欄位由節拍序列接管。
+ */
+export function templateFieldParts(
+  template: PromptTemplate,
+  values: Record<string, { zh: string; en: string }>,
+  selectValues: Record<string, string[]>,
+  lang: Lang,
+  beats: Beat[] | null,
+): string[] {
   const parts: string[] = [];
 
   let beatsInserted = false;
   for (const field of template.fields) {
-    if (state.timelineEnabled && ACTION_FIELD_IDS.has(field.id)) {
+    if (beats !== null && ACTION_FIELD_IDS.has(field.id)) {
       if (!beatsInserted) {
-        const seq = beatSequence(state.beats ?? [], lang);
+        const seq = beatSequence(beats, lang);
         if (seq) parts.push(seq);
         beatsInserted = true;
       }
       continue;
     }
     if (field.type === 'text') {
-      const v = state.values[field.id];
+      const v = values[field.id];
       const value = v ? pick(v.zh, v.en, lang) : '';
       if (!value) continue;
       parts.push(wrap(value, lang === 'zh' ? field.wrapZh : field.wrapEn));
     } else {
-      const selected = (state.selectValues[field.id] ?? [])
+      const selected = (selectValues[field.id] ?? [])
         .map((optId) => field.options?.find((o) => o.id === optId))
         .filter((o): o is NonNullable<typeof o> => Boolean(o));
       if (selected.length === 0) continue;
@@ -154,10 +160,26 @@ export function assembleTemplate(state: TemplateState, lang: Lang, platform: Pla
       parts.push(wrap(joined, lang === 'zh' ? field.wrapZh : field.wrapEn));
     }
   }
-  if (state.timelineEnabled && !beatsInserted) {
-    const seq = beatSequence(state.beats ?? [], lang);
+  if (beats !== null && !beatsInserted) {
+    const seq = beatSequence(beats, lang);
     if (seq) parts.push(seq);
   }
+
+  return parts;
+}
+
+/** 模板填空模式的提示詞組裝 */
+export function assembleTemplate(state: TemplateState, lang: Lang, platform: Platform, settings: Settings): string {
+  const template = getTemplate(state.templateId);
+  if (!template) return '';
+
+  const parts = templateFieldParts(
+    template,
+    state.values,
+    state.selectValues,
+    lang,
+    state.timelineEnabled ? (state.beats ?? []) : null,
+  );
 
   const dur = durationPart(state.duration, lang, platform);
   if (dur) parts.push(dur);

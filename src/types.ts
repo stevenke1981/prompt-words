@@ -1,6 +1,6 @@
 export type Platform = 'seedance' | 'grok';
 export type Language = 'zh' | 'en' | 'both';
-export type BuilderMode = 'form' | 'template';
+export type BuilderMode = 'form' | 'template' | 'node';
 
 export interface TagOption {
   id: string;
@@ -113,4 +113,52 @@ export interface HistoryEntry {
   form: FormState;
   template: TemplateState;
   settings: Settings;
+  /** 節點工作台模式的圖譜快照 */
+  graph?: GraphState;
+}
+
+/* ============ 節點工作台（Node Studio） ============ */
+
+export type NodeKind =
+  | 'subject'
+  | 'action'
+  | 'text'
+  | 'category'
+  | 'template'
+  | 'timeline'
+  | 'duration'
+  | 'director'
+  | 'output';
+
+/** 每種節點承載的設定（discriminated union，kind 為判別欄位） */
+export type NodeData =
+  | { kind: 'subject' | 'action' | 'text'; zh: string; en: string }
+  | { kind: 'category'; categoryId: string; selected: string[] }
+  | {
+      kind: 'template';
+      templateId: string;
+      values: Record<string, { zh: string; en: string }>;
+      selectValues: Record<string, string[]>;
+    }
+  | { kind: 'timeline'; beats: Beat[] }
+  | { kind: 'duration'; seconds: number | null }
+  | { kind: 'director'; settings: Settings }
+  | { kind: 'output' };
+
+export interface GraphNode {
+  id: string;
+  x: number;
+  y: number;
+  data: NodeData;
+}
+
+/** 連接線：來源節點 → 唯一的成品輸出節點；陣列順序即組裝順序 */
+export interface GraphEdge {
+  id: string;
+  from: string;
+}
+
+export interface GraphState {
+  nodes: GraphNode[];
+  edges: GraphEdge[];
 }

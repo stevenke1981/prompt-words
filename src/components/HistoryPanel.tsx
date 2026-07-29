@@ -46,7 +46,7 @@ export default function HistoryPanel({ entries, onLoad, onToggleFav, onDelete, o
             <li key={e.id} className="history-item">
               <div className="history-meta">
                 <span className={`history-platform hp-${e.platform}`}>{PLATFORMS[e.platform].short}</span>
-                <span className="history-mode">{e.mode === 'form' ? '表單' : '模板'}</span>
+                <span className="history-mode">{e.mode === 'form' ? '表單' : e.mode === 'template' ? '模板' : '節點'}</span>
                 <span className="history-time">{timeLabel(e.ts)}</span>
               </div>
               <p className="history-text">{e.zh || e.en}</p>
